@@ -1,0 +1,38 @@
+[project]
+name = "scdm-realworld"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "rs415",
+    "kinova-gen3",
+    "bubblify>=0.1.0",
+    "kortex-api @ file:///home/irsl/kkh_ws/scdm_realworld/assets/kortex_api-2.6.0.post3-py3-none-any.whl",
+    "pyyaml>=6.0.3",
+    "scipy>=1.13.0",
+    "tyro>=1.0.8",
+    "viser>=1.0.24",
+    "allegro-v5",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.6,<0.10.0"]
+build-backend = "uv_build"
+
+[project.scripts]
+main = "scdm_realworld.main:main"
+visualize = "scdm_realworld.visualize:main"
+urdf-visualize = "scdm_realworld.urdf_visualize:main"
+
+[tool.uv.workspace]
+members = [
+    "packages/rs415",
+    "packages/kinova_gen3",
+    "packages/allegro_v5"
+]
+
+[tool.uv.sources]
+kinova-gen3 = { workspace = true }
+rs415 = { workspace = true }
+allegro-v5 = { workspace = true }

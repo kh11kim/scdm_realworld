@@ -1,0 +1,54 @@
+collision_spheres:
+  gen3_shoulder_link:
+  - center:
+    - -2.8888949165808538e-34
+    - 0.004668405281191966
+    - -0.13125124685039147
+    radius: 0.06717004768424675
+  gen3_half_arm_1_link:
+  - center:
+    - -2.311115933264683e-33
+    - -0.213856693408776
+    - -0.005637282290411339
+    radius: 0.06794186395100316
+  gen3_half_arm_2_link:
+  - center:
+    - 1.232595164407831e-31
+    - 0.006643407945308252
+    - -0.20908906188894294
+    radius: 0.07032839192342574
+  gen3_forearm_link:
+  - center:
+    - -2.465190328815662e-32
+    - -0.20279684044741242
+    - -0.007246299696888715
+    radius: 0.06042807381298582
+  gen3_spherical_wrist_1_link:
+  - center:
+    - 4.930380657631324e-32
+    - 3.469446951953614e-18
+    - -0.105604995574893
+    radius: 0.0580094921052104
+  gen3_spherical_wrist_2_link:
+  - center:
+    - -1.1093356479670479e-31
+    - -0.12096221127656337
+    - 0.0
+    radius: 0.06147329273653648
+  palm_link:
+  - center:
+    - -0.0016161320944454993
+    - -7.573064690121713e-29
+    - -0.05199614583344303
+    radius: 0.09115130398642339
+metadata:
+  total_spheres: 7
+  links:
+  - gen3_shoulder_link
+  - gen3_half_arm_1_link
+  - gen3_half_arm_2_link
+  - gen3_forearm_link
+  - gen3_spherical_wrist_1_link
+  - gen3_spherical_wrist_2_link
+  - palm_link
+  export_timestamp: 1773142384.373632

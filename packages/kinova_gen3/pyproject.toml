@@ -1,0 +1,18 @@
+[project]
+name = "kinova-gen3"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "kortex-api @ file:///home/irsl/kkh_ws/scdm_realworld/assets/kortex_api-2.6.0.post3-py3-none-any.whl",
+    "pyyaml>=6.0.3",
+    "tyro>=1.0.8",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.6,<0.10.0"]
+build-backend = "uv_build"
+
+[project.scripts]
+kinova_gen3 = "kinova_gen3.__main__:main"
