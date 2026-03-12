@@ -1,0 +1,23 @@
+[project]
+name = "allegro-v5"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=2.3.5",
+    "pyzmq>=27.1.0",
+    "tyro>=0.9.35",
+    "viser>=1.0.16",
+]
+
+
+[build-system]
+requires = ["uv_build>=0.9.6,<0.10.0"]
+build-backend = "uv_build"
+
+[project.scripts]
+allegro_v5 = "allegro_v5.cli:main"
+telemetry_subscriber = "allegro_v5.scripts.telemetry_subscriber:main"
+visualize_allegro = "allegro_v5.scripts.visualize_allegro:main"
+control_allegro = "allegro_v5.scripts.control_allegro:main"
