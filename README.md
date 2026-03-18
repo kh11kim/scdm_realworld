@@ -68,3 +68,35 @@ uv run main run
 - system calibration: [`assets/system_calibration.yaml`](assets/system_calibration.yaml)
 - Kinova config: [`packages/kinova_gen3/config.yaml`](packages/kinova_gen3/config.yaml)
 - box environment: [`assets/box_env.yaml`](assets/box_env.yaml)
+
+## 6. SAM3 Client
+
+`sam3` 연결 정보는 [`assets/config.yaml`](assets/config.yaml)의 `sam3` 섹션에서 관리합니다.
+
+GPU server와 통신하려면 먼저 SSH port forwarding을 열어야 합니다.
+
+```bash
+ssh -L 8000:localhost:8000 <user>@<gpu-server>
+```
+
+현재 노출한 API는 [`sam3_client.py`](src/scdm_realworld/sam3_client.py) 의 두 함수입니다.
+
+```python
+from scdm_realworld.sam3_client import echo, get_seg_mask
+import numpy as np
+
+reply = echo("hello gpu server")
+rgb = np.zeros((480, 640, 3), dtype=np.uint8)
+mask = get_seg_mask(rgb, [320, 240])
+```
+
+현재 endpoint 가정은 아래와 같습니다.
+- `POST /echo`
+- `POST /seg_mask`
+
+서버 머신에서는 [`sam_server.py`](src/scdm_realworld/sam_server.py)를 실행하면 됩니다.
+이 코드는 서버 경로와 예제 이미지를 하드코딩해서 최소 예제로 유지합니다.
+
+```bash
+uv run sam_server connect
+```
