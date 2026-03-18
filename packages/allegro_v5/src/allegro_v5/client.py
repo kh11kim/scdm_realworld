@@ -19,10 +19,16 @@ DEFAULT_SOCKET_PATH = "/tmp/allegro_v5.sock"
 def _call(request, *, socket_path: str = DEFAULT_SOCKET_PATH, timeout_s: float | None = 1.0):
     conn = Client(socket_path, family="AF_UNIX")
     try:
+        should_log = not isinstance(request, GetStateRequest)
+        if should_log:
+            print(f"[allegro_v5.client] send {type(request).__name__}", flush=True)
         conn.send(request)
         if timeout_s is not None and not conn.poll(timeout_s):
             raise TimeoutError(f"Timed out waiting for response on {socket_path}")
-        return conn.recv()
+        response = conn.recv()
+        if should_log:
+            print(f"[allegro_v5.client] recv {type(response).__name__}", flush=True)
+        return response
     finally:
         conn.close()
 

@@ -5,10 +5,12 @@
 #include <thread>
 
 #include "allegro_hand_driver/AllegroHandDrv.h"
+#include "allegro_hand_driver/logging.h"
 #include "allegro_hand_control/control_core.h"
 
 int main(int argc, char** argv) {
   std::string can_if = argc > 1 ? argv[1] : std::string("can0");
+  ah_set_verbose(true);
 
   eHandType hand = eHandType_Right;
   if (argc > 2) {

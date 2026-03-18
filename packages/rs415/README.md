@@ -12,6 +12,7 @@ Minimal RealSense D415 toolkit with:
 uv sync
 uv run rs415 list
 uv run rs415 info
+uv run rs415 connect --mode server --serial <serial> --fps 15
 uv run rs415 connect --mode window
 uv run rs415 connect --mode server
 uv run rs415 generate-board --output aruco_gridboard.png

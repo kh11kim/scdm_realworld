@@ -14,6 +14,7 @@ from kortex_api.autogen.messages import Base_pb2, ControlConfig_pb2
 
 from kinova_gen3.device import DeviceConnection
 from kinova_gen3.config import (
+    KINOVA_JOINT_POSITION_LIMITS,
     KINOVA_SOFT_JOINT_ACCELERATION_LIMITS,
     KINOVA_SOFT_JOINT_SPEED_LIMITS,
 )
@@ -58,7 +59,26 @@ def _check_for_end_or_abort(event: threading.Event):
 def _measured_joints_rad(base: BaseClient) -> list[float]:
     joint_angles = base.GetMeasuredJointAngles()
     joints_rad = [float(np.deg2rad(joint_angle.value)) for joint_angle in joint_angles.joint_angles]
-    return [float((value + np.pi) % (2.0 * np.pi) - np.pi) for value in joints_rad]
+    wrapped: list[float] = []
+    two_pi = 2.0 * np.pi
+    for index, value in enumerate(joints_rad):
+        limit = None
+        if index < len(KINOVA_JOINT_POSITION_LIMITS):
+            limit = KINOVA_JOINT_POSITION_LIMITS[index]
+        if limit is None:
+            wrapped.append(float((value + np.pi) % two_pi - np.pi))
+            continue
+        lower, upper = float(limit[0]), float(limit[1])
+        candidates = [value + k * two_pi for k in range(-2, 3)]
+        feasible = [candidate for candidate in candidates if lower <= candidate <= upper]
+        if feasible:
+            wrapped.append(float(min(feasible, key=lambda candidate: abs(candidate - value))))
+            continue
+        if abs((upper - lower) - two_pi) < 1e-3:
+            wrapped.append(float((value - lower) % two_pi + lower))
+            continue
+        wrapped.append(float(value))
+    return wrapped
 
 
 def _execute_joint_trajectory(

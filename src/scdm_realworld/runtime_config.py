@@ -32,6 +32,25 @@ class HandApi:
     goto_joints: Callable[[list[float], float], None]
 
 
+def _resolve_q_presets(
+    config: dict[str, object],
+    *,
+    prefix: str,
+) -> dict[str, np.ndarray]:
+    q_preset_cfg = config.get("q_preset", {})
+    if not isinstance(q_preset_cfg, dict):
+        return {}
+    resolved: dict[str, np.ndarray] = {}
+    for key, values in q_preset_cfg.items():
+        if not isinstance(key, str) or not key.startswith(prefix) or not key.endswith("_q"):
+            continue
+        if not isinstance(values, list):
+            continue
+        name = key.removeprefix(prefix).removesuffix("_q")
+        resolved[name] = np.asarray(values, dtype=np.float64)
+    return resolved
+
+
 def load_runtime_config(path: Path) -> dict[str, object]:
     if not path.exists():
         return {}
@@ -71,6 +90,14 @@ def resolve_hand_home_q(config: dict[str, object]) -> np.ndarray | None:
     if not isinstance(values, list):
         return None
     return np.asarray(values, dtype=np.float64)
+
+
+def resolve_arm_presets(config: dict[str, object]) -> dict[str, np.ndarray]:
+    return _resolve_q_presets(config, prefix="arm_")
+
+
+def resolve_hand_presets(config: dict[str, object]) -> dict[str, np.ndarray]:
+    return _resolve_q_presets(config, prefix="hand_")
 
 
 def _resolve_api_module_name(

@@ -44,6 +44,9 @@ class CameraView:
         self._frame = None
         self._frustum = None
         self._pcd = None
+        self._latest_rgb: np.ndarray | None = None
+        self._latest_depth: np.ndarray | None = None
+        self._latest_intrinsics: dict[str, object] | None = None
 
         with server.gui.add_folder(label):
             self.visualize_checkbox = server.gui.add_checkbox("visualize", initial_value=True)
@@ -64,12 +67,21 @@ class CameraView:
         try:
             bundle = self._reader.read(copy=True)
         except Exception as exc:
+            self._latest_rgb = None
+            self._latest_depth = None
+            self._latest_intrinsics = None
             self.clear()
             return False, str(exc)
         intrinsics = bundle.meta.get("intrinsics")
         if not isinstance(intrinsics, dict):
+            self._latest_rgb = None
+            self._latest_depth = None
+            self._latest_intrinsics = None
             self.clear()
             return False, "missing intrinsics"
+        self._latest_rgb = bundle.rgb
+        self._latest_depth = bundle.depth
+        self._latest_intrinsics = dict(intrinsics)
 
         if self.visualize_checkbox.value:
             self._render_frustum(camera_pose, intrinsics, bundle.rgb)
@@ -90,6 +102,24 @@ class CameraView:
         self.clear()
         if self._reader is not None:
             self._reader.close()
+
+    @property
+    def latest_rgb(self) -> np.ndarray | None:
+        if self._latest_rgb is None:
+            return None
+        return self._latest_rgb.copy()
+
+    @property
+    def latest_depth(self) -> np.ndarray | None:
+        if self._latest_depth is None:
+            return None
+        return self._latest_depth.copy()
+
+    @property
+    def latest_intrinsics(self) -> dict[str, object] | None:
+        if self._latest_intrinsics is None:
+            return None
+        return dict(self._latest_intrinsics)
 
     def _render_frustum(
         self,

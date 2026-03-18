@@ -202,7 +202,7 @@ def detect_aruco_markers(
     if intrinsic is not None and marker_length_m is not None and marker_length_m > 0.0:
         camera_matrix, dist_coeffs = intrinsic_to_matrices(intrinsic)
         half = marker_length_m / 2.0
-        object_points = np.array(
+        marker_points = np.array(
             [
                 [-half, half, 0.0],
                 [half, half, 0.0],
@@ -211,24 +211,25 @@ def detect_aruco_markers(
             ],
             dtype=np.float32,
         )
-        solved_rvecs: list[np.ndarray] = []
-        solved_tvecs: list[np.ndarray] = []
+        estimated_rvecs: list[np.ndarray] = []
+        estimated_tvecs: list[np.ndarray] = []
         for marker_corners in corners:
+            image_points = np.asarray(marker_corners, dtype=np.float32).reshape(4, 2)
             solved, rvec, tvec = cv2.solvePnP(
-                object_points,
-                np.asarray(marker_corners, dtype=np.float32).reshape(-1, 2),
+                marker_points,
+                image_points,
                 camera_matrix,
                 dist_coeffs,
                 flags=cv2.SOLVEPNP_IPPE_SQUARE,
             )
-            if solved:
-                solved_rvecs.append(np.asarray(rvec, dtype=np.float64))
-                solved_tvecs.append(np.asarray(tvec, dtype=np.float64))
-            else:
-                solved_rvecs.append(np.zeros((3, 1), dtype=np.float64))
-                solved_tvecs.append(np.zeros((3, 1), dtype=np.float64))
-        rvecs = tuple(solved_rvecs)
-        tvecs = tuple(solved_tvecs)
+            if not solved:
+                estimated_rvecs.append(np.zeros((3, 1), dtype=np.float64))
+                estimated_tvecs.append(np.zeros((3, 1), dtype=np.float64))
+                continue
+            estimated_rvecs.append(np.asarray(rvec, dtype=np.float64).reshape(3, 1))
+            estimated_tvecs.append(np.asarray(tvec, dtype=np.float64).reshape(3, 1))
+        rvecs = tuple(estimated_rvecs)
+        tvecs = tuple(estimated_tvecs)
     return ArucoDetection(
         corners=tuple(corners),
         ids=np.asarray(ids, dtype=np.int32),

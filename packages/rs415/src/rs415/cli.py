@@ -36,10 +36,11 @@ class ListCommand:
 @dataclass
 class InfoCommand:
     serial: str | None = None
+    fps: int = 30
 
     def run(self) -> int:
         """Connect to a device and print stream intrinsics."""
-        camera = Camera()
+        camera = Camera(fps=self.fps)
         try:
             connected = camera.connect(serial=self.serial)
             print(f"Connected: {connected.name} (serial={connected.serial})")
@@ -63,10 +64,11 @@ class InfoCommand:
 class ConnectCommand:
     serial: str | None = None
     mode: Literal["window", "server"] = "server"
+    fps: int = 30
 
     def run(self) -> int:
         """Connect to a device and run either window mode or shared-memory mode."""
-        camera = Camera(window=self.mode == "window")
+        camera = Camera(window=self.mode == "window", fps=self.fps)
         try:
             connected = camera.connect(serial=self.serial)
             print(f"Connected: {connected.name} (serial={connected.serial})")

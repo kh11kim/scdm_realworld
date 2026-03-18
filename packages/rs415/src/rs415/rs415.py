@@ -29,7 +29,12 @@ class IntrinsicInfo:
 
 
 class Camera:
-    def __init__(self, window: bool = False, window_name: str = "RS415") -> None:
+    def __init__(
+        self,
+        window: bool = False,
+        window_name: str = "RS415",
+        fps: int = 30,
+    ) -> None:
         """Initialize camera context and runtime state."""
         self._context = rs.context()
         self._pipeline: rs.pipeline | None = None
@@ -40,6 +45,7 @@ class Camera:
         self._window = window
         self._window_name = window_name
         self._frame_timeout_ms = 5000
+        self._fps = fps
 
     def list_devices(self) -> list[DeviceInfo]:
         """Return all currently connected RealSense devices."""
@@ -54,6 +60,25 @@ class Camera:
             )
         return result
 
+    def _supported_fps_for_device(self, device: rs.device) -> list[int]:
+        depth_fps: set[int] = set()
+        color_fps: set[int] = set()
+        for sensor in device.query_sensors():
+            for profile in sensor.get_stream_profiles():
+                try:
+                    vsp: Any = profile.as_video_stream_profile()
+                except RuntimeError:
+                    continue
+                if vsp.width() != 640 or vsp.height() != 480:
+                    continue
+                stream_type = profile.stream_type()
+                fps = int(profile.fps())
+                if stream_type == rs.stream.depth and profile.format() == rs.format.z16:
+                    depth_fps.add(fps)
+                if stream_type == rs.stream.color and profile.format() == rs.format.bgr8:
+                    color_fps.add(fps)
+        return sorted(depth_fps & color_fps)
+
     def connect(self, serial: str | None = None) -> DeviceInfo:
         """Connect the pipeline to a target serial or the first available device."""
         devices = self.list_devices()
@@ -67,11 +92,31 @@ class Camera:
             if target is None:
                 raise RuntimeError(f"RealSense device not found: serial={serial}")
 
+        rs_devices = self._context.query_devices()
+        rs_target = next(
+            (
+                device
+                for device in rs_devices
+                if device.get_info(rs.camera_info.serial_number) == target.serial
+            ),
+            None,
+        )
+        if rs_target is None:
+            raise RuntimeError(f"RealSense device not found in context: serial={target.serial}")
+
+        supported_fps = self._supported_fps_for_device(rs_target)
+        if supported_fps and self._fps not in supported_fps:
+            choices = ", ".join(str(fps) for fps in supported_fps)
+            raise RuntimeError(
+                f"Unsupported fps={self._fps} for serial={target.serial}. "
+                f"Supported fps at 640x480: {choices}"
+            )
+
         pipeline = rs.pipeline()
         config = rs.config()
         config.enable_device(target.serial)
-        config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
-        config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
+        config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, self._fps)
+        config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, self._fps)
 
         profile = pipeline.start(config)
 

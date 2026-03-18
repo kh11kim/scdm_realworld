@@ -42,6 +42,7 @@ class _ZmqTelemetrySubscriber:
         self._socket.setsockopt(zmq.RCVTIMEO, 100)
         self._socket.connect(f"tcp://{host}:{port}")
         self._latest: dict | None = None
+        self._last_warning_time = 0.0
         self._lock = threading.Lock()
         self._running = True
         self._thread = threading.Thread(target=self._poll_loop, daemon=True)
@@ -52,6 +53,20 @@ class _ZmqTelemetrySubscriber:
             if self._latest is None:
                 raise TimeoutError("No Allegro telemetry received yet")
             return dict(self._latest)
+
+    def has_latest(self) -> bool:
+        with self._lock:
+            return self._latest is not None
+
+    def should_warn(self, *, interval_s: float = 2.0) -> bool:
+        now = time.monotonic()
+        with self._lock:
+            if self._latest is not None:
+                return False
+            if now - self._last_warning_time < interval_s:
+                return False
+            self._last_warning_time = now
+            return True
 
     def close(self) -> None:
         self._running = False
@@ -100,6 +115,12 @@ def _handle_request(request, telem: _ZmqTelemetrySubscriber, req_socket) -> Stat
         try:
             msg = telem.recv_latest()
         except TimeoutError as exc:
+            if telem.should_warn():
+                print(
+                    "[allegro_v5.server] no telemetry received yet; "
+                    "check hand power/CAN connection and that the hand is initialized.",
+                    flush=True,
+                )
             return StateResponse(error=str(exc))
         return StateResponse(
             frame=int(msg.get("frame", 0)),
@@ -112,10 +133,12 @@ def _handle_request(request, telem: _ZmqTelemetrySubscriber, req_socket) -> Stat
         )
 
     if isinstance(request, SetDesiredPositionRequest):
+        print(f"[allegro_v5.server] request {type(request).__name__}", flush=True)
         payload = {
             "cmd": "set_joint_command",
             "desired": list(request.desired_position),
         }
+        print("[allegro_v5.server] -> allegro_run set_joint_command", flush=True)
         req_socket.send_string(json.dumps(payload))
         reply = req_socket.recv_string()
         try:
@@ -123,10 +146,22 @@ def _handle_request(request, telem: _ZmqTelemetrySubscriber, req_socket) -> Stat
         except json.JSONDecodeError:
             return AckResponse(ok=False, error=f"invalid reply: {reply}")
         if bool(parsed.get("ok", False)):
-            return AckResponse(ok=True)
-        return AckResponse(ok=False, error=str(parsed.get("error", "unknown error")))
+            response = AckResponse(ok=True)
+            print(f"[allegro_v5.server] response {type(response).__name__}(ok=True)", flush=True)
+            return response
+        response = AckResponse(ok=False, error=str(parsed.get("error", "unknown error")))
+        print(
+            f"[allegro_v5.server] response {type(response).__name__}(ok=False, error={response.error})",
+            flush=True,
+        )
+        return response
 
-    return AckResponse(ok=False, error=f"unsupported request: {type(request).__name__}")
+    response = AckResponse(ok=False, error=f"unsupported request: {type(request).__name__}")
+    print(
+        f"[allegro_v5.server] response {type(response).__name__}(ok=False, error={response.error})",
+        flush=True,
+    )
+    return response
 
 
 def serve_forever(config: ServerConfig) -> int:
@@ -171,6 +206,17 @@ def serve_forever(config: ServerConfig) -> int:
             return int(process.returncode)
 
         telem = _ZmqTelemetrySubscriber(host="localhost", port=config.pub_port)
+        startup_deadline = time.monotonic() + 2.0
+        while time.monotonic() < startup_deadline:
+            if telem.has_latest():
+                break
+            time.sleep(0.05)
+        if not telem.has_latest():
+            print(
+                "[allegro_v5.server] warning: no telemetry received after startup; "
+                "state reads will fail until the hand starts publishing.",
+                flush=True,
+            )
         ctx = zmq.Context.instance()
         req_socket = ctx.socket(zmq.REQ)
         req_socket.connect(f"tcp://localhost:{config.rep_port}")

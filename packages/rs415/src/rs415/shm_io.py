@@ -110,15 +110,16 @@ class RS415SharedMemoryWriter:
     ) -> None:
         self.names = make_shm_names(serial)
         self._frame_id = int(meta.get("frame_id", 0))
-        self._meta_shm = shared_memory.SharedMemory(
-            name=self.names.meta, create=True, size=META_SIZE
+        self._meta_shm = _create_or_replace_shared_memory(
+            name=self.names.meta,
+            size=META_SIZE,
         )
-        self._rgb_shm = shared_memory.SharedMemory(
-            name=self.names.rgb, create=True, size=int(np.prod(rgb_shape)) * RGB_DTYPE.itemsize
+        self._rgb_shm = _create_or_replace_shared_memory(
+            name=self.names.rgb,
+            size=int(np.prod(rgb_shape)) * RGB_DTYPE.itemsize,
         )
-        self._depth_shm = shared_memory.SharedMemory(
+        self._depth_shm = _create_or_replace_shared_memory(
             name=self.names.depth,
-            create=True,
             size=int(np.prod(depth_shape)) * DEPTH_DTYPE.itemsize,
         )
         self._rgb = np.ndarray(rgb_shape, dtype=RGB_DTYPE, buffer=self._rgb_shm.buf)
@@ -179,9 +180,9 @@ class RS415SharedMemoryWriter:
         total_size = META_LENGTH_STRUCT.size + len(encoded)
         if total_size > META_SIZE:
             raise ValueError("metadata payload exceeds shared memory segment size")
-        self._meta_shm.buf[:META_SIZE] = b"\x00" * META_SIZE
-        self._meta_shm.buf[: META_LENGTH_STRUCT.size] = META_LENGTH_STRUCT.pack(len(encoded))
+        self._meta_shm.buf[: META_LENGTH_STRUCT.size] = META_LENGTH_STRUCT.pack(0)
         self._meta_shm.buf[META_LENGTH_STRUCT.size : total_size] = encoded
+        self._meta_shm.buf[: META_LENGTH_STRUCT.size] = META_LENGTH_STRUCT.pack(len(encoded))
 
 
 class RS415SharedMemoryReader:
@@ -201,17 +202,26 @@ class RS415SharedMemoryReader:
 
     def read_meta(self) -> dict[str, Any]:
         last_error: Exception | None = None
-        for _ in range(3):
-            raw_length = bytes(self._meta_shm.buf[: META_LENGTH_STRUCT.size])
-            payload_length = META_LENGTH_STRUCT.unpack(raw_length)[0]
+        for _ in range(10):
+            raw_length_before = bytes(self._meta_shm.buf[: META_LENGTH_STRUCT.size])
+            payload_length = META_LENGTH_STRUCT.unpack(raw_length_before)[0]
             if payload_length == 0:
                 last_error = RuntimeError("shared memory metadata is empty")
+                time.sleep(0.001)
+                continue
+            if payload_length > META_SIZE - META_LENGTH_STRUCT.size:
+                last_error = RuntimeError("shared memory metadata length is invalid")
                 time.sleep(0.001)
                 continue
             start = META_LENGTH_STRUCT.size
             stop = start + payload_length
             try:
                 payload = bytes(self._meta_shm.buf[start:stop]).decode("utf-8")
+                raw_length_after = bytes(self._meta_shm.buf[: META_LENGTH_STRUCT.size])
+                if raw_length_before != raw_length_after:
+                    last_error = RuntimeError("shared memory metadata changed during read")
+                    time.sleep(0.001)
+                    continue
                 return json.loads(payload)
             except (UnicodeDecodeError, json.JSONDecodeError) as exc:
                 last_error = exc
@@ -293,3 +303,13 @@ def _unregister_shared_memory(shm: shared_memory.SharedMemory) -> None:
         resource_tracker.unregister(shm._name, "shared_memory")
     except Exception:
         pass
+
+
+def _create_or_replace_shared_memory(*, name: str, size: int) -> shared_memory.SharedMemory:
+    try:
+        return shared_memory.SharedMemory(name=name, create=True, size=size)
+    except FileExistsError:
+        stale = shared_memory.SharedMemory(name=name, create=False)
+        stale.close()
+        stale.unlink()
+        return shared_memory.SharedMemory(name=name, create=True, size=size)

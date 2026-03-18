@@ -323,8 +323,16 @@ def run(args: Args) -> int:
     @role_gui.on_update
     def _(_) -> None:
         selected_role["value"] = str(role_gui.value)
+        preview = latest_previews[selected_role["value"]]
+        if preview is not None:
+            preview_gui.image = preview
+            status_gui.value = f"{selected_role['value']}: connected"
+            return
+        preview_gui.image = np.zeros((480, 640, 3), dtype=np.uint8)
         if not _serial_for_role(selected_role["value"]):
             status_gui.value = f"{selected_role['value']}: serial not set"
+        else:
+            status_gui.value = f"{selected_role['value']}: waiting for frame"
 
     @cam_ext_serial_gui.on_update
     def _(_) -> None:
@@ -386,11 +394,32 @@ def run(args: Args) -> int:
                         connected_gui.value = False
                         estimated_board_poses[role] = None
                         continue
-                    bundle = reader.read(copy=True)
                     connected_gui.value = True
+                    bundle = reader.read(copy=True)
+                except Exception as exc:
+                    connected_gui.value = False
+                    estimated_board_poses[role] = None
+                    latest_previews[role] = None
+                    _reset_reader(role)
+                    if frustum_handles[role] is not None:
+                        frustum_handles[role].remove()
+                        frustum_handles[role] = None
+                    if point_cloud_handles[role] is not None:
+                        point_cloud_handles[role].remove()
+                        point_cloud_handles[role] = None
+                    if role == selected_role["value"]:
+                        preview_gui.image = np.zeros((480, 640, 3), dtype=np.uint8)
+                        status_gui.value = f"{role}: {exc}"
+                    continue
+
+                try:
                     intrinsic = _intrinsic_from_meta(bundle.meta)
                     latest_bundles[role] = bundle
                     latest_intrinsics[role] = intrinsic
+                    latest_previews[role] = bundle.rgb
+                    if role == selected_role["value"]:
+                        preview_gui.image = bundle.rgb
+                        status_gui.value = f"{selected_role['value']}: connected"
                     frame_bgr = cv2.cvtColor(bundle.rgb, cv2.COLOR_RGB2BGR)
                     checkerboard_detection = detect_checkerboard(
                         frame_bgr=frame_bgr,
@@ -435,19 +464,12 @@ def run(args: Args) -> int:
                     if role == selected_role["value"]:
                         preview_gui.image = preview_rgb
                         status_gui.value = f"{selected_role['value']}: connected"
-                except Exception:
-                    connected_gui.value = False
+                except Exception as exc:
                     estimated_board_poses[role] = None
-                    latest_previews[role] = None
-                    _reset_reader(role)
-                    if frustum_handles[role] is not None:
-                        frustum_handles[role].remove()
-                        frustum_handles[role] = None
-                    if point_cloud_handles[role] is not None:
-                        point_cloud_handles[role].remove()
-                        point_cloud_handles[role] = None
+                    latest_previews[role] = bundle.rgb
                     if role == selected_role["value"]:
-                        preview_gui.image = np.zeros((480, 640, 3), dtype=np.uint8)
+                        preview_gui.image = bundle.rgb
+                        status_gui.value = f"{role} processing: {exc}"
 
             try:
                 q_current = np.asarray(arm_api.get_joints(), dtype=np.float64)

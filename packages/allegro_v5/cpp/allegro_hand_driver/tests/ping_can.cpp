@@ -10,6 +10,7 @@
 
 int main(int argc, char** argv) {
   std::string can_if = argc > 1 ? argv[1] : std::string("can0");
+  ah_set_verbose(true);
 
   allegro::AllegroHandDrv drv;
   if (!drv.init(can_if)) {

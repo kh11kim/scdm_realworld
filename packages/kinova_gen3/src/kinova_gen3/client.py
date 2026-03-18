@@ -3,6 +3,7 @@ from __future__ import annotations
 from multiprocessing.connection import Client
 
 import numpy as np
+from scipy.interpolate import CubicSpline
 
 from kinova_gen3.config import KINOVA_SOCKET_PATH
 from kinova_gen3.config import KINOVA_JOINT_POSITION_LIMITS as JOINT_POSITION_LIMITS
@@ -42,6 +43,43 @@ def _compute_waypoint_durations(
     ]
     scale = float(total_time_s) / sum(durations)
     return [value * scale for value in durations]
+
+
+def _resample_trajectory_for_execution(
+    trajectory: list[list[float]],
+    *,
+    current_q: list[float],
+    num_waypoints: int = 30,
+) -> list[list[float]]:
+    if len(trajectory) == 0:
+        return []
+
+    qs = np.asarray(trajectory, dtype=np.float64)
+    current = np.asarray(current_q, dtype=np.float64).reshape(1, -1)
+    if qs.ndim != 2:
+        raise ValueError(f"trajectory must have shape (N, dof), got {qs.shape}")
+    if qs.shape[1] != current.shape[1]:
+        raise ValueError(
+            f"trajectory dof {qs.shape[1]} does not match current dof {current.shape[1]}"
+        )
+
+    qs = qs.copy()
+    qs[0] = current[0]
+    if len(qs) == 1:
+        return qs.tolist()
+
+    sample_count = max(num_waypoints, len(qs))
+    s_orig = np.linspace(0.0, 1.0, len(qs))
+    t = np.linspace(0.0, 1.0, sample_count)
+    u = 3.0 * t**2 - 2.0 * t**3
+
+    resampled = np.empty((sample_count, qs.shape[1]), dtype=np.float64)
+    for joint_idx in range(qs.shape[1]):
+        spline = CubicSpline(s_orig, qs[:, joint_idx], bc_type="clamped")
+        resampled[:, joint_idx] = spline(u)
+    resampled[0] = current[0]
+    resampled[-1] = qs[-1]
+    return resampled.tolist()
 
 
 def _call(request, *, socket_path: str = KINOVA_SOCKET_PATH):
@@ -143,8 +181,15 @@ def execute_trajectory(
     trajectory: list[list[float]],
     total_time_s: float,
 ) -> None:
-    send_trajectory(
+    if len(trajectory) == 0:
+        return
+    current_q = get_joints()
+    execution_trajectory = _resample_trajectory_for_execution(
         trajectory,
+        current_q=current_q,
+    )
+    send_trajectory(
+        execution_trajectory,
         total_time_s=total_time_s,
         wait=True,
     )

@@ -13,8 +13,10 @@ from scdm_realworld.runtime_config import (
     load_runtime_config,
     resolve_arm_home_q,
     resolve_arm_api,
+    resolve_arm_presets,
     resolve_hand_home_q,
     resolve_hand_api,
+    resolve_hand_presets,
     resolve_robot_urdf,
 )
 from scdm_realworld.system_calibrate_app import Args as CalibrateArgs
@@ -62,6 +64,8 @@ def main() -> int:
             hand_api=resolve_hand_api(runtime_config),
             arm_home_q=resolve_arm_home_q(runtime_config),
             hand_home_q=resolve_hand_home_q(runtime_config),
+            arm_presets=resolve_arm_presets(runtime_config),
+            hand_presets=resolve_hand_presets(runtime_config),
             host=args.host,
             port=args.port,
             scale=args.scale,

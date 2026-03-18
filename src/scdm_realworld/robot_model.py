@@ -165,11 +165,11 @@ class RobotModel:
         for joint_name in self._arm_joint_names:
             joint = self._urdf.joint_map[joint_name]
             if joint.limit is None:
-                lower_bounds.append(-2.0 * np.pi)
-                upper_bounds.append(2.0 * np.pi)
+                lower_bounds.append(-np.pi)
+                upper_bounds.append(np.pi)
             else:
-                lower = -2.0 * np.pi if joint.limit.lower is None else float(joint.limit.lower)
-                upper = 2.0 * np.pi if joint.limit.upper is None else float(joint.limit.upper)
+                lower = -np.pi if joint.limit.lower is None else float(joint.limit.lower)
+                upper = np.pi if joint.limit.upper is None else float(joint.limit.upper)
                 lower_bounds.append(lower)
                 upper_bounds.append(upper)
         return np.asarray(lower_bounds, dtype=np.float64), np.asarray(upper_bounds, dtype=np.float64)
